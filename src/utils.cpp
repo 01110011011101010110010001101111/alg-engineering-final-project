@@ -14,13 +14,10 @@ void convert_pt_to_polytope(const Eigen::VectorXd& pt, Eigen::MatrixXd& A, Eigen
 }
 
 /**
- * Build graph structure from polytope constraints
+ * Check for overlap using optimization problem
  */
 bool check_overlap(const MatrixXd& A1, const VectorXd& b1,
                    const MatrixXd& A2, const VectorXd& b2) {
-    /**
-     * Check if two polytopes defined by A1, b1 and A2, b2 overlap.
-     */
     int dim = A1.cols();
     MathematicalProgram prog;
     auto x = prog.NewContinuousVariables(dim, "x");
@@ -41,6 +38,9 @@ bool check_overlap(const MatrixXd& A1, const VectorXd& b1,
     return result.is_success();
 }
 
+/**
+ * Build graph from polytopes
+ */
 void build_graph(const std::map<VertexType, MatrixXd>& As,
                  const std::map<VertexType, VectorXd>& bs,
                  std::vector<VertexType>& V,
@@ -84,20 +84,10 @@ void build_graph(const std::map<VertexType, MatrixXd>& As,
 }
 
 /**
- * Delta function for GCS formulation
+ * Delta function
  */
-// START AND TARGET VERTICES:
-// The start and target vertices for the GCS problem are hardcoded below.
-// By default, start is vertex 0 (s), and target is vertex 1 (t).
-// To change them, modify the vertex indices in the if-conditions below.
-// Example: if you want start to be vertex 2 and target to be vertex 4,
-// change to: if (type == 's' && v == 2 && w == 2) ... and if (type == 't' && v == 4 && w == 4) ...
-int delta(char type, VertexType v, VertexType w, VertexType start_vertex, VertexType target_vertex) {
-    /**
-     * Delta variable in the GCS MICP formulation.
-     * type: 's' for source, 't' for target
-     */
-    if (type == 's' && v == start_vertex && w == start_vertex) return 1;
-    if (type == 't' && v == target_vertex && w == target_vertex) return 1;
+int delta(char type, VertexType u, VertexType v, VertexType start_vertex, VertexType target_vertex) {
+    if (type == 's' && u == start_vertex && v == start_vertex) return 1;
+    if (type == 't' && u == target_vertex && v == target_vertex) return 1;
     return 0;
 }
