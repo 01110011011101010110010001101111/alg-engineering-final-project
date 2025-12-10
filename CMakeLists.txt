@@ -9,6 +9,10 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 find_package(drake CONFIG REQUIRED)
 find_package(Eigen3 REQUIRED)
 
+add_executable(generate_benchmark 
+    src/generate_benchmark.cpp
+)
+
 add_executable(classic_solver 
     src/classic_solver.cpp
     src/utils.cpp
@@ -22,9 +26,18 @@ target_include_directories(classic_solver PRIVATE
     "include"
 )
 
+target_include_directories(generate_benchmark PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    "include"
+)
+
 # link drake + eigen libraries
 target_link_libraries(classic_solver
     drake::drake
+    Eigen3::Eigen
+)
+
+target_link_libraries(generate_benchmark
     Eigen3::Eigen
 )
 
