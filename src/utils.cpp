@@ -1,5 +1,7 @@
 #include "utils.hpp"
 #include "types.hpp"
+#include <omp.h>
+
 using drake::solvers::MathematicalProgram;
 using drake::solvers::Solve;
 
@@ -38,6 +40,41 @@ bool check_overlap(const MatrixXd& A1, const VectorXd& b1,
     return result.is_success();
 }
 
+
+
+/**
+ * Build graph from polytopes (sequential version)
+ */
+void build_graph_seq(const std::map<VertexType, MatrixXd>& As,
+                 const std::map<VertexType, VectorXd>& bs,
+                 std::vector<VertexType>& V,
+                 std::vector<EdgeType>& E,
+                 std::map<VertexType, std::vector<EdgeType>>& I_v_in,
+                 std::map<VertexType, std::vector<EdgeType>>& I_v_out) {
+    // Extract vertices
+    for (const auto& [v, _] : As) {
+        V.push_back(v);
+    }
+    // Initialize incidence lists
+    for (VertexType v : V) {
+        I_v_in[v] = {};
+        I_v_out[v] = {};
+    }
+    // Build edges by checking overlaps
+    for (VertexType v1 : V) {
+        for (VertexType v2 : V) {
+            if (v1 != v2) {
+                if (check_overlap(As.at(v1), bs.at(v1), As.at(v2), bs.at(v2))) {
+                    EdgeType e = {v1, v2};
+                    E.push_back(e);
+                    I_v_out[e.first].push_back(e);
+                    I_v_in[e.second].push_back(e);
+                }
+            }
+        }
+    }
+}
+
 /**
  * Build graph from polytopes
  */
@@ -61,26 +98,38 @@ void build_graph(const std::map<VertexType, MatrixXd>& As,
         I_v_in[v] = {};
         I_v_out[v] = {};
     }
-    
-    // Build edges by checking overlaps
-    for (VertexType v1 : V) {
-        for (VertexType v2 : V) {
+    std::vector<EdgeType> local_E;
+    std::map<VertexType, std::vector<EdgeType>> local_I_v_in, local_I_v_out;
+    #pragma omp parallel for schedule(dynamic)
+    for (int i = 0; i < V.size(); ++i) {
+        VertexType v1 = V[i];
+        std::vector<EdgeType> thread_E;
+        std::map<VertexType, std::vector<EdgeType>> thread_I_v_in, thread_I_v_out;
+        for (int j = 0; j < V.size(); ++j) {
+            VertexType v2 = V[j];
             if (v1 != v2) {
                 if (check_overlap(As.at(v1), bs.at(v1), As.at(v2), bs.at(v2))) {
                     EdgeType e = {v1, v2};
-                    E.push_back(e);
+                    thread_E.push_back(e);
+                    thread_I_v_out[e.first].push_back(e);
+                    thread_I_v_in[e.second].push_back(e);
                 }
             }
         }
+        #pragma omp critical
+        {
+            local_E.insert(local_E.end(), thread_E.begin(), thread_E.end());
+            for (const auto& [v, edges] : thread_I_v_in) {
+                local_I_v_in[v].insert(local_I_v_in[v].end(), edges.begin(), edges.end());
+            }
+            for (const auto& [v, edges] : thread_I_v_out) {
+                local_I_v_out[v].insert(local_I_v_out[v].end(), edges.begin(), edges.end());
+            }
+        }
     }
-    
-    // Build incidence lists
-    for (const EdgeType& e : E) {
-        VertexType v = e.first;
-        VertexType w = e.second;
-        I_v_out[v].push_back(e);
-        I_v_in[w].push_back(e);
-    }
+    E = std::move(local_E);
+    I_v_in = std::move(local_I_v_in);
+    I_v_out = std::move(local_I_v_out);
 }
 
 /**

@@ -1,4 +1,3 @@
-
 #include <limits>
 #include <iostream>
 #include <vector>
@@ -9,6 +8,7 @@
 #include <memory>
 #include <algorithm>
 #include <cstring>
+#include <fstream>
 
 // drake
 #include <drake/common/eigen_types.h>
@@ -319,7 +319,6 @@ Solution solve_classic_gcs(const std::map<VertexType, MatrixXd>& As,
             z_v_sol[v] = result.GetSolution(z_v[v]);
             y_v_sol[v] = result.GetSolution(y_v[v]);
             
-            // rounding
             if (std::abs(y_v_sol[v]) < TOLERANCE) {
                 y_v_sol[v] = 0;
             } else if (std::abs(y_v_sol[v] - 1) < TOLERANCE) {
@@ -330,7 +329,6 @@ Solution solve_classic_gcs(const std::map<VertexType, MatrixXd>& As,
         for (const EdgeType& e : E) {
             y_e_sol[e] = result.GetSolution(y_e[e]);
             
-            // rounding
             if (std::abs(y_e_sol[e]) < TOLERANCE) {
                 y_e_sol[e] = 0;
             } else if (std::abs(y_e_sol[e]) > 1-TOLERANCE) {
@@ -429,6 +427,7 @@ void read_benchmark(std::map<std::string, MatrixXd>& As,
 
 int main(int argc, char* argv[]) {
     auto overall_start_time = std::chrono::high_resolution_clock::now();
+    LOG("C++ Classic Solver for GCS");
 
     LOG("C++ Classic Solver for GCS");    
 
@@ -555,32 +554,14 @@ int main(int argc, char* argv[]) {
     // VectorXd s(2); s << 1.893928402271689, -1.7429985950951574;
     // VectorXd t(2); t << -0.51, 5.01;
 
-    // convert str to int for compatiblity
-    std::map<int, MatrixXd> As_int;
-    std::map<int, VectorXd> bs_int;
-    int idx = 0;
-    std::map<std::string, int> key_map;
-    for (const auto& [k, v] : As) {
-        As_int[idx] = v;
-        bs_int[idx] = bs[k];
-        key_map[k] = idx;
-        ++idx;
-    }
+    int start_vertex = s_idx;
+    int target_vertex = t_idx;
 
-    // debug: check the output
-    if (ENABLE_LOGGING) {
-        LOG("Vertex key mapping:");
-        for (const auto& [k, i] : key_map) {
-            LOG("  " << k << " -> " << i);
-        }
-    }
+    n += 2;
 
-    int start_vertex = key_map["s"];
-    int target_vertex = key_map["t"];
+    std::cout << "Number of regions (excluding start and target): " << n << std::endl;
 
     LOG("Solving GCS Problem from vertex " << start_vertex << " to vertex " << target_vertex);
-
-    // Pass start/target to solver (update solver signature if needed)
     Solution solution = solve_classic_gcs(As_int, bs_int, n, start_vertex, target_vertex);
     
     if (solution.success) {
